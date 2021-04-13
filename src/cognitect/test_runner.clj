@@ -56,6 +56,15 @@
   (require (symbol (namespace sym)))
   (resolve sym))
 
+(defn- require-injections
+  [{:keys [injected-namespaces]}]
+  (when injected-namespaces
+    (println "Requiring injected-namespaces...")
+    (let [nses (flatten (vec injected-namespaces))]
+        (doseq [ns-to-load nses]
+        (println "Requiring " ns-to-load "...")
+          (require ns-to-load)))))
+
 (defn test
   [options]
   (let [dirs (or (:dir options)
@@ -69,6 +78,7 @@
     (when (not with-output)
       (throw (ex-info "Specified with-output not found" {})))
     (println (format "\nRunning tests in %s" dirs))
+    (require-injections options)
     (dorun (map require nses))
     (try
       (filter-vars! nses (var-filter options))
@@ -83,6 +93,10 @@
   [s]
   (if (.startsWith s ":") (read-string s) (keyword s)))
 
+(defn- parse-ns-vec
+  [s]
+  (->> (str/split s #",")
+       (map symbol)))
 
 (defn- accumulate [m k v]
   (update-in m [k] (fnil conj #{}) v))
@@ -90,6 +104,9 @@
 (def cli-options
   [["-d" "--dir DIRNAME" "Name of the directory containing tests. Defaults to \"test\"."
     :parse-fn str
+    :assoc-fn accumulate]
+   ["-j" "--injected-namespaces STRING" "namespaces separated with commas to inject before running tests."
+    :parse-fn parse-ns-vec
     :assoc-fn accumulate]
    ["-n" "--namespace SYMBOL" "Symbol indicating a specific namespace to test."
     :parse-fn symbol
